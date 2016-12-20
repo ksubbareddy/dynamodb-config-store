@@ -54,3 +54,8 @@ docs/_build/
 
 # Local DynamoDB
 dynamodb-local
+
+# IntelliJ & PyDev Files
+.idea/
+**/*.iml
+.project

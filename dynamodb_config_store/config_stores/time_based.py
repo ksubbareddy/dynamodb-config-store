@@ -4,9 +4,7 @@ This config store updates the configuration every x seconds
 """
 import threading
 import time
-
-from boto.dynamodb2.exceptions import ItemNotFound
-
+from boto3.dynamodb.conditions import Key
 from dynamodb_config_store.config_stores import ConfigStore
 
 
@@ -83,9 +81,10 @@ class TimeBasedConfigStore(ConfigStore):
         """
         try:
             items = {}
-            query = {'{}__eq'.format(self._store_key): self._store_name}
-
-            for item in self._table.query_2(**query):
+            query_results = self._table.query(
+                KeyConditionExpression=Key(self._store_key).eq(self._store_name)
+            )
+            for item in query_results[u'Items']:
                 option = item[self._option_key]
 
                 # Remove metadata
@@ -96,5 +95,5 @@ class TimeBasedConfigStore(ConfigStore):
 
             return items
 
-        except ItemNotFound:
+        except Exception as error:
             return {}

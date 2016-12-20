@@ -34,15 +34,17 @@ prod        | secret-key     |                |                | test1234
 import os.path
 import time
 from ConfigParser import SafeConfigParser
+import boto3
+from botocore.exceptions import ClientError
 
-from boto.dynamodb2.exceptions import (
-    LimitExceededException,
-    ProvisionedThroughputExceededException,
-    ResourceInUseException,
-    ResourceNotFoundException,
-    ValidationException)
-from boto.dynamodb2.fields import HashKey, RangeKey
-from boto.dynamodb2.table import Table
+# from boto.dynamodb2.exceptions import (
+#     LimitExceededException,
+#     ProvisionedThroughputExceededException,
+#     ResourceInUseException,
+#     ResourceNotFoundException,
+#     ValidationException)
+# from boto.dynamodb2.fields import HashKey, RangeKey
+# from boto.dynamodb2.table import Table
 from boto.exception import JSONResponseError
 
 from dynamodb_config_store.config_stores.simple import SimpleConfigStore
@@ -76,7 +78,7 @@ class DynamoDBConfigStore(object):
     write_units = None      # Number of write units to provision to new tables
 
     def __init__(
-            self, connection, table_name, store_name,
+            self, table_name, store_name,
             store_key='_store', option_key='_option',
             read_units=1, write_units=1,
             config_store='SimpleConfigStore',
@@ -101,7 +103,8 @@ class DynamoDBConfigStore(object):
         :param config_store_kwargs: Store type key word arguments
         :returns: None
         """
-        self.connection = connection
+        self.resource = boto3.resource('dynamodb')
+        self.client = boto3.client('dynamodb')
         self.option_key = option_key
         self.read_units = read_units
         self.store_key = store_key
@@ -142,7 +145,7 @@ class DynamoDBConfigStore(object):
         :returns: None
         """
         try:
-            table = self.connection.describe_table(self.table_name)
+            table = self.client.describe_table(self.table_name)
             status = table[u'Table'][u'TableStatus']
             schema = table[u'Table'][u'KeySchema']
 
@@ -165,8 +168,8 @@ class DynamoDBConfigStore(object):
             if not hash_found or not range_found:
                 raise MisconfiguredSchemaException
 
-        except JSONResponseError as error:
-            if error.error_code == 'ResourceNotFoundException':
+        except ClientError as error:
+            if error.response['Error']['Code'] == 'ResourceNotFoundException':
                 table_created = self._create_table(
                     read_units=self.read_units,
                     write_units=self.write_units)
@@ -174,7 +177,7 @@ class DynamoDBConfigStore(object):
                 if not table_created:
                     raise TableNotCreatedException
 
-        self.table = Table(self.table_name, connection=self.connection)
+        self.table = self.resource.Table(self.table_name)
 
     def _create_table(self, read_units=1, write_units=1):
         """ Create a new table
@@ -185,17 +188,21 @@ class DynamoDBConfigStore(object):
         :param write_units: Number of write capacity units to provision
         :returns: bool -- Returns True if the table was created
         """
-        self.table = Table.create(
-            self.table_name,
-            schema=[
-                HashKey(self.store_key),
-                RangeKey(self.option_key)
+        self.table = self.resource.create_table(
+            TableName=self.table_name,
+            KeySchema=[
+                {'AttributeName': self.store_key, 'KeyType': 'HASH' },
+                {'AttributeName': self.option_key, 'KeyType': 'RANGE'}
             ],
-            throughput={
-                'read': read_units,
-                'write': write_units
+            ProvisionedThroughput={
+                'ReadCapacityUnits': read_units,
+                'WriteCapacityUnits': write_units
             },
-            connection=self.connection)
+            AttributeDefinitions=[
+                {'AttributeName': self.store_key, 'AttributeType': 'S'},
+                {'AttributeName': self.option_key, 'AttributeType': 'S'},
+            ]
+        )
 
         # Wait for the table to get ACTIVE
         return self._wait_for_table(target_state='ACTIVE')
@@ -212,7 +219,7 @@ class DynamoDBConfigStore(object):
         :returns: bool -- True if the target state was reached, else False
         """
         while retries > 0:
-            desc = self.connection.describe_table(self.table_name)
+            desc = self.client.describe_table(self.table_name)
             if desc[u'Table'][u'TableStatus'] == target_state.upper():
                 return True
 
@@ -243,16 +250,9 @@ class DynamoDBConfigStore(object):
         data[self.option_key] = option
 
         try:
-            return self.table.put_item(data, overwrite=True)
-        except LimitExceededException:
-            raise
-        except ProvisionedThroughputExceededException:
-            raise
-        except ResourceInUseException:
-            raise
-        except ResourceNotFoundException:
-            raise
-        except ValidationException:
+            return self.table.put_item(
+                Item=data, overwrite=True)
+        except ClientError as error:
             raise
         except Exception:
             raise
