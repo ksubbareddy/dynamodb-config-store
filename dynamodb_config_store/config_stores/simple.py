@@ -1,7 +1,6 @@
 """ The Simple Config Store implementation """
-from boto.dynamodb2.exceptions import ItemNotFound
-
 from dynamodb_config_store.config_stores import ConfigStore
+from boto3.dynamodb.conditions import Key
 
 
 class SimpleConfigStore(ConfigStore):
@@ -55,9 +54,10 @@ class SimpleConfigStore(ConfigStore):
         else:
             try:
                 items = {}
-                query = {'{}__eq'.format(self._store_key): self._store_name}
-
-                for item in self._table.query_2(**query):
+                query_results = self._table.query(
+                    KeyConditionExpression=Key(self._store_key).eq(self._store_name)
+                )
+                for item in query_results[u'Items']:
                     option = item[self._option_key]
 
                     # Remove metadata
@@ -68,7 +68,7 @@ class SimpleConfigStore(ConfigStore):
 
                 return items
 
-            except ItemNotFound:
+            except Exception:
                 raise
 
     def get_option(self, option, keys=None):
@@ -87,13 +87,12 @@ class SimpleConfigStore(ConfigStore):
         :returns: dict -- Dictionary with all data; {'key': 'value'}
         """
         try:
-            kwargs = {
-                self._store_key: self._store_name,
-                self._option_key: option
-            }
-
-            item = self._table.get_item(**kwargs)
-
+            item = self._table.get_item(
+                Key={
+                    self._store_key: self._store_name,
+                    self._option_key: option
+                }
+            )['Item']
             del item[self._store_key]
             del item[self._option_key]
 
@@ -106,5 +105,5 @@ class SimpleConfigStore(ConfigStore):
             else:
                 return {key: value for key, value in item.items()}
 
-        except ItemNotFound:
+        except Exception:
             raise
