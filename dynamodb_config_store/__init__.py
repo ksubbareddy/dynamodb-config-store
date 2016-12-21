@@ -145,7 +145,7 @@ class DynamoDBConfigStore(object):
         :returns: None
         """
         try:
-            table = self.client.describe_table(self.table_name)
+            table = self.client.describe_table(TableName=self.table_name)
             status = table[u'Table'][u'TableStatus']
             schema = table[u'Table'][u'KeySchema']
 
@@ -219,7 +219,7 @@ class DynamoDBConfigStore(object):
         :returns: bool -- True if the target state was reached, else False
         """
         while retries > 0:
-            desc = self.client.describe_table(self.table_name)
+            desc = self.client.describe_table(TableName=self.table_name)
             if desc[u'Table'][u'TableStatus'] == target_state.upper():
                 return True
 
@@ -250,8 +250,7 @@ class DynamoDBConfigStore(object):
         data[self.option_key] = option
 
         try:
-            return self.table.put_item(
-                Item=data, overwrite=True)
+            return self.table.put_item(Item=data)
         except ClientError as error:
             raise
         except Exception:

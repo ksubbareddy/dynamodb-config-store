@@ -92,8 +92,7 @@ class SimpleConfigStore(ConfigStore):
                     self._store_key: self._store_name,
                     self._option_key: option
                 }
-            )
-
+            )['Item']
             del item[self._store_key]
             del item[self._option_key]
 
