@@ -79,7 +79,7 @@ class DynamoDBConfigStore(object):
 
     def __init__(
             self, table_name, store_name,
-            store_key='_store', option_key='_option',
+            store_key='_store', option_key='_option', region='ap-soyheast-2',
             read_units=1, write_units=1,
             config_store='SimpleConfigStore',
             config_store_args=[], config_store_kwargs={}):
@@ -103,8 +103,8 @@ class DynamoDBConfigStore(object):
         :param config_store_kwargs: Store type key word arguments
         :returns: None
         """
-        self.resource = boto3.resource('dynamodb')
-        self.client = boto3.client('dynamodb')
+        self.resource = boto3.resource('dynamodb', region_name=region)
+        self.client = boto3.client('dynamodb', region_name=region)
         self.option_key = option_key
         self.read_units = read_units
         self.store_key = store_key
