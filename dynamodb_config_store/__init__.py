@@ -79,7 +79,7 @@ class DynamoDBConfigStore(object):
 
     def __init__(
             self, table_name, store_name,
-            store_key='_store', option_key='_option', region='ap-soyheast-2',
+            store_key='_store', option_key='_option', region='ap-southeast-2',
             read_units=1, write_units=1,
             config_store='SimpleConfigStore',
             config_store_args=[], config_store_kwargs={}):
